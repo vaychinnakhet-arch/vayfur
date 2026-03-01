@@ -16,6 +16,7 @@ interface AppContextType {
   syncData: () => Promise<void>;
   saveLayout: (roomType: string, layout: any[]) => Promise<void>;
   forceInitialize: () => Promise<void>;
+  updateRoomFurnitureStatus: (roomId: string, status: ItemStatus) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -317,7 +318,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              }
              
              return {
-               id: savedItem ? savedItem.id : `f-${index}`,
+               // Use saved ID if available, otherwise use CODE as ID to ensure uniqueness and stability
+               // Do NOT use index (f-${index}) as it causes collisions when list shifts (e.g. F-06 split)
+               id: savedItem ? savedItem.id : definition.code,
                code: definition.code,
                name: definition.name,
                imageUrl: definition.imageUrl,
@@ -394,34 +397,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateFurnitureStatus = async (roomId: string, furnitureId: string, status: ItemStatus, notes?: string, images?: string[]) => {
     let updatedFurnitureItem: any = null;
     
-    setRooms(prevRooms => {
-      const newRooms = prevRooms.map(room => {
-        if (room.id === roomId) {
-          return {
-            ...room,
-            furniture: room.furniture.map(f => {
-              if (f.id === furnitureId) {
-                let newProgress = f.installProgress;
-                if (status === 'installed') newProgress = 100;
-                if (status === 'delivered' || status === 'pending') newProgress = 0;
-                if (status === 'installing' && newProgress === 0) newProgress = 10;
-                
-                const updatedItem = { ...f, status, installProgress: newProgress };
-                if (notes !== undefined) updatedItem.notes = notes;
-                if (images !== undefined) updatedItem.images = images;
-                
-                updatedFurnitureItem = updatedItem;
-                return updatedItem;
-              }
-              return f;
-            }),
-          };
-        }
-        return room;
-      });
-      localStorage.setItem('vay-chinnakhet-data', JSON.stringify(newRooms));
-      return newRooms;
+    const newRooms = rooms.map(room => {
+      if (room.id === roomId) {
+        return {
+          ...room,
+          furniture: room.furniture.map(f => {
+            if (f.id === furnitureId) {
+              let newProgress = f.installProgress;
+              if (status === 'installed') newProgress = 100;
+              if (status === 'delivered' || status === 'pending') newProgress = 0;
+              if (status === 'installing' && newProgress === 0) newProgress = 10;
+              
+              const updatedItem = { ...f, status, installProgress: newProgress };
+              if (notes !== undefined) updatedItem.notes = notes;
+              if (images !== undefined) updatedItem.images = images;
+              
+              updatedFurnitureItem = updatedItem;
+              return updatedItem;
+            }
+            return f;
+          }),
+        };
+      }
+      return room;
     });
+
+    setRooms(newRooms);
+    localStorage.setItem('vay-chinnakhet-data', JSON.stringify(newRooms));
 
     if (gasUrl && updatedFurnitureItem) {
       try {
@@ -443,34 +445,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateRoomFurnitureStatus = async (roomId: string, status: ItemStatus) => {
+    let updatedRoom: Room | undefined;
+    
+    const newRooms = rooms.map(room => {
+      if (room.id === roomId) {
+        const updatedFurniture = room.furniture.map(f => {
+          let newProgress = f.installProgress;
+          if (status === 'installed') newProgress = 100;
+          if (status === 'delivered' || status === 'pending') newProgress = 0;
+          
+          return { ...f, status, installProgress: newProgress };
+        });
+        
+        updatedRoom = { ...room, furniture: updatedFurniture };
+        return updatedRoom;
+      }
+      return room;
+    });
+
+    setRooms(newRooms);
+    localStorage.setItem('vay-chinnakhet-data', JSON.stringify(newRooms));
+
+    if (gasUrl && updatedRoom) {
+      try {
+        // Use saveAll to ensure compatibility and robustness
+        await fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'saveAll',
+            rooms: newRooms
+          }),
+          redirect: 'follow',
+        });
+      } catch (error) {
+        console.error('Failed to update GAS:', error);
+      }
+    }
+  };
+
   const updateFurnitureProgress = async (roomId: string, furnitureId: string, progress: number) => {
     let updatedFurnitureItem: any = null;
 
-    setRooms(prevRooms => {
-      const newRooms = prevRooms.map(room => {
-        if (room.id === roomId) {
-          return {
-            ...room,
-            furniture: room.furniture.map(f => {
-              if (f.id === furnitureId) {
-                let newStatus = f.status;
-                if (progress === 100) newStatus = 'installed';
-                else if (progress > 0 && progress < 100) newStatus = 'installing';
-                else if (progress === 0 && (f.status === 'installing' || f.status === 'installed')) newStatus = 'delivered';
-                
-                const updatedItem = { ...f, installProgress: progress, status: newStatus };
-                updatedFurnitureItem = updatedItem;
-                return updatedItem;
-              }
-              return f;
-            }),
-          };
-        }
-        return room;
-      });
-      localStorage.setItem('vay-chinnakhet-data', JSON.stringify(newRooms));
-      return newRooms;
+    const newRooms = rooms.map(room => {
+      if (room.id === roomId) {
+        return {
+          ...room,
+          furniture: room.furniture.map(f => {
+            if (f.id === furnitureId) {
+              let newStatus = f.status;
+              if (progress === 100) newStatus = 'installed';
+              else if (progress > 0 && progress < 100) newStatus = 'installing';
+              else if (progress === 0 && (f.status === 'installing' || f.status === 'installed')) newStatus = 'delivered';
+              
+              const updatedItem = { ...f, installProgress: progress, status: newStatus };
+              updatedFurnitureItem = updatedItem;
+              return updatedItem;
+            }
+            return f;
+          }),
+        };
+      }
+      return room;
     });
+
+    setRooms(newRooms);
+    localStorage.setItem('vay-chinnakhet-data', JSON.stringify(newRooms));
 
     if (gasUrl && updatedFurnitureItem) {
       try {
@@ -512,7 +553,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       error,
       syncData,
       saveLayout,
-      forceInitialize
+      forceInitialize,
+      updateRoomFurnitureStatus
     }}>
       {children}
     </AppContext.Provider>

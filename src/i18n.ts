@@ -57,6 +57,10 @@ export const translations = {
     applyToAllSimilar: 'Update status for all {code} in this room ({count} items)',
     error: 'Error',
     retry: 'Retry',
+    installAll: 'Install All',
+    deliverAll: 'Deliver All',
+    confirmInstallAll: 'Are you sure you want to mark all items in this room as INSTALLED?',
+    confirmDeliverAll: 'Are you sure you want to mark all items in this room as DELIVERED?',
   },
   th: {
     dashboard: 'หน้าหลัก',
@@ -114,6 +118,10 @@ export const translations = {
     applyToAllSimilar: 'อัปเดตสถานะให้กับ {code} ทุกชิ้นในห้องนี้ ({count} ชิ้น)',
     error: 'ข้อผิดพลาด',
     retry: 'ลองใหม่',
+    installAll: 'ติดตั้งทั้งหมด',
+    deliverAll: 'ส่งของทั้งหมด',
+    confirmInstallAll: 'คุณแน่ใจหรือไม่ที่จะเปลี่ยนสถานะเฟอร์นิเจอร์ทั้งหมดในห้องนี้เป็น "ติดตั้งแล้ว"?',
+    confirmDeliverAll: 'คุณแน่ใจหรือไม่ที่จะเปลี่ยนสถานะเฟอร์นิเจอร์ทั้งหมดในห้องนี้เป็น "ส่งของแล้ว"?',
   }
 };
 

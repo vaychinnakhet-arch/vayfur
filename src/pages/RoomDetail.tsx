@@ -6,7 +6,7 @@ import { ItemStatus, getFloorPlanImage } from '../data';
 
 export const RoomDetail: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
-  const { rooms, updateFurnitureStatus, updateFurnitureProgress, t, saveLayout } = useAppContext();
+  const { rooms, updateFurnitureStatus, updateFurnitureProgress, t, saveLayout, updateRoomFurnitureStatus } = useAppContext();
   const [selectedFurnitureId, setSelectedFurnitureId] = useState<string | null>(null);
   const [tempStatus, setTempStatus] = useState<ItemStatus | null>(null);
   const [tempProgress, setTempProgress] = useState<number | null>(null);
@@ -26,6 +26,19 @@ export const RoomDetail: React.FC = () => {
       </div>
     );
   }
+
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleBatchUpdate = async (status: ItemStatus) => {
+    if (window.confirm(t(status === 'installed' ? 'confirmInstallAll' : 'confirmDeliverAll'))) {
+      setIsUpdating(true);
+      try {
+        await updateRoomFurnitureStatus(room.id, status);
+      } finally {
+        setIsUpdating(false);
+      }
+    }
+  };
 
   const handleStatusChange = (status: ItemStatus) => {
     setTempStatus(status);
@@ -227,6 +240,24 @@ export const RoomDetail: React.FC = () => {
               className="h-full bg-[#cd3731] transition-all duration-500"
               style={{ width: `${progress}%` }}
             ></div>
+          </div>
+          <div className="flex gap-2 mt-2 justify-end">
+            <button 
+              onClick={() => handleBatchUpdate('installed')}
+              disabled={isUpdating}
+              className={`px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-200 transition-colors flex items-center gap-1 ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <CheckCircle2 className="w-3 h-3" />
+              {isUpdating ? '...' : t('installAll')}
+            </button>
+            <button 
+              onClick={() => handleBatchUpdate('delivered')}
+              disabled={isUpdating}
+              className={`px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors flex items-center gap-1 ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Package className="w-3 h-3" />
+              {isUpdating ? '...' : t('deliverAll')}
+            </button>
           </div>
         </div>
       </div>
