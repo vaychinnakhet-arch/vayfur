@@ -77,9 +77,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!gasUrl) return;
     setIsSyncing(true);
     try {
+      // Use text/plain for Google Apps Script to avoid CORS preflight
       const response = await fetch(gasUrl, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+        },
         body: JSON.stringify({ action: 'load' }),
+        redirect: 'follow',
       });
       const result = await response.json();
       if (result.success && result.rooms && result.rooms.length > 0) {
@@ -89,11 +94,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // If sheet is empty, save current local data to sheet
         await fetch(gasUrl, {
           method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain',
+          },
           body: JSON.stringify({ action: 'saveAll', rooms }),
+          redirect: 'follow',
         });
       }
     } catch (error) {
       console.error('Failed to sync data:', error);
+      alert('Failed to sync data. Please check your internet connection or Google Apps Script URL.');
     } finally {
       setIsSyncing(false);
     }
@@ -146,11 +156,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         await fetch(gasUrl, {
           method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain',
+          },
           body: JSON.stringify({
             action: 'update',
             roomId,
             furniture: updatedFurnitureItem
           }),
+          redirect: 'follow',
         });
       } catch (error) {
         console.error('Failed to update GAS:', error);
@@ -191,11 +205,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         await fetch(gasUrl, {
           method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain',
+          },
           body: JSON.stringify({
             action: 'update',
             roomId,
             furniture: updatedFurnitureItem
           }),
+          redirect: 'follow',
         });
       } catch (error) {
         console.error('Failed to update GAS:', error);
