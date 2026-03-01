@@ -103,13 +103,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!gasUrl) return;
     setIsSyncing(true);
     try {
-      // Use text/plain for Google Apps Script to avoid CORS preflight
+      // Use GET for loading data as per the new Apps Script structure
       const response = await fetch(gasUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain',
-        },
-        body: JSON.stringify({ action: 'load' }),
+        method: 'GET',
         redirect: 'follow',
       });
       const result = await response.json();
@@ -298,7 +294,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             'Content-Type': 'text/plain',
           },
           body: JSON.stringify({
-            action: 'update',
+            action: 'updateStatus',
             roomId,
             furniture: updatedFurnitureItem
           }),
@@ -347,7 +343,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             'Content-Type': 'text/plain',
           },
           body: JSON.stringify({
-            action: 'update',
+            action: 'updateStatus',
             roomId,
             furniture: updatedFurnitureItem
           }),
