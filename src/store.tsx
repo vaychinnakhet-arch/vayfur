@@ -10,13 +10,20 @@ interface AppContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string, params?: Record<string, any>) => string;
+  gasUrl: string;
+  isSyncing: boolean;
+  syncData: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwhaJ6KA1HGw2Z7Qw5m927uTs_ElwUpfR8253CaNPeQTu90z0WCTDTsmOwS3cJtVKTA/exec';
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [language, setLanguageState] = useState<Language>('en');
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const gasUrl = GAS_URL;
 
   useEffect(() => {
     const storedData = localStorage.getItem('vay-chinnakhet-data');
@@ -66,11 +73,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('vay-chinnakhet-lang', lang);
   };
 
+  const syncData = async () => {
+    if (!gasUrl) return;
+    setIsSyncing(true);
+    try {
+      const response = await fetch(gasUrl, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'load' }),
+      });
+      const result = await response.json();
+      if (result.success && result.rooms && result.rooms.length > 0) {
+        setRooms(result.rooms);
+        localStorage.setItem('vay-chinnakhet-data', JSON.stringify(result.rooms));
+      } else if (result.success && (!result.rooms || result.rooms.length === 0)) {
+        // If sheet is empty, save current local data to sheet
+        await fetch(gasUrl, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'saveAll', rooms }),
+        });
+      }
+    } catch (error) {
+      console.error('Failed to sync data:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Load from GAS when URL is set or on mount if URL exists
+  useEffect(() => {
+    if (gasUrl) {
+      syncData();
+    }
+  }, [gasUrl]);
+
   const translate = (key: string, params?: Record<string, any>) => {
     return t(language, key, params);
   };
 
-  const updateFurnitureStatus = (roomId: string, furnitureId: string, status: ItemStatus, notes?: string, images?: string[]) => {
+  const updateFurnitureStatus = async (roomId: string, furnitureId: string, status: ItemStatus, notes?: string, images?: string[]) => {
+    let updatedFurnitureItem: any = null;
+    
     setRooms(prevRooms => {
       const newRooms = prevRooms.map(room => {
         if (room.id === roomId) {
@@ -87,6 +129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 if (notes !== undefined) updatedItem.notes = notes;
                 if (images !== undefined) updatedItem.images = images;
                 
+                updatedFurnitureItem = updatedItem;
                 return updatedItem;
               }
               return f;
@@ -98,9 +141,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('vay-chinnakhet-data', JSON.stringify(newRooms));
       return newRooms;
     });
+
+    if (gasUrl && updatedFurnitureItem) {
+      try {
+        await fetch(gasUrl, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'update',
+            roomId,
+            furniture: updatedFurnitureItem
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to update GAS:', error);
+      }
+    }
   };
 
-  const updateFurnitureProgress = (roomId: string, furnitureId: string, progress: number) => {
+  const updateFurnitureProgress = async (roomId: string, furnitureId: string, progress: number) => {
+    let updatedFurnitureItem: any = null;
+
     setRooms(prevRooms => {
       const newRooms = prevRooms.map(room => {
         if (room.id === roomId) {
@@ -113,7 +173,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 else if (progress > 0 && progress < 100) newStatus = 'installing';
                 else if (progress === 0 && (f.status === 'installing' || f.status === 'installed')) newStatus = 'delivered';
                 
-                return { ...f, installProgress: progress, status: newStatus };
+                const updatedItem = { ...f, installProgress: progress, status: newStatus };
+                updatedFurnitureItem = updatedItem;
+                return updatedItem;
               }
               return f;
             }),
@@ -124,6 +186,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('vay-chinnakhet-data', JSON.stringify(newRooms));
       return newRooms;
     });
+
+    if (gasUrl && updatedFurnitureItem) {
+      try {
+        await fetch(gasUrl, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'update',
+            roomId,
+            furniture: updatedFurnitureItem
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to update GAS:', error);
+      }
+    }
   };
 
   const resetData = () => {
@@ -140,7 +217,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resetData,
       language,
       setLanguage,
-      t: translate
+      t: translate,
+      gasUrl,
+      isSyncing,
+      syncData
     }}>
       {children}
     </AppContext.Provider>

@@ -1,12 +1,12 @@
 import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Building2, FileBarChart2, Menu, X, Globe } from 'lucide-react';
+import { LayoutDashboard, Building2, FileBarChart2, Menu, X, Globe, RefreshCw } from 'lucide-react';
 import { useAppContext } from '../store';
 
 export const Layout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const location = useLocation();
-  const { language, setLanguage, t } = useAppContext();
+  const { language, setLanguage, t, gasUrl, isSyncing, syncData } = useAppContext();
 
   const navItems = [
     { name: t('dashboard'), path: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -27,7 +27,7 @@ export const Layout: React.FC = () => {
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
                 <img src="https://i.postimg.cc/MHKmJ50Y/Gemini-Generated-Image-cp5b3gcp5b3gcp5b.png" alt="Vay Chinnakhet Logo" className="h-10 w-auto object-contain" />
-                <span className="ml-4 text-sm font-semibold tracking-wide text-white hidden sm:block">{t('furnitureChecklist')}</span>
+                <span className="ml-4 text-sm font-semibold tracking-wide text-white hidden sm:block">Vay Chinnakhet Furniture Check</span>
               </div>
               <nav className="hidden sm:ml-12 sm:flex sm:space-x-8">
                 {navItems.map((item) => {
@@ -50,6 +50,16 @@ export const Layout: React.FC = () => {
               </nav>
             </div>
             <div className="flex items-center space-x-4">
+              {gasUrl && (
+                <button
+                  onClick={syncData}
+                  disabled={isSyncing}
+                  className={`inline-flex items-center justify-center p-2 rounded-md text-white/90 hover:text-white hover:bg-white/10 transition-colors ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title="Sync Data"
+                >
+                  <RefreshCw className={`h-5 w-5 ${isSyncing ? 'animate-spin' : ''}`} />
+                </button>
+              )}
               <button
                 onClick={toggleLanguage}
                 className="inline-flex items-center justify-center p-2 rounded-md text-white/90 hover:text-white hover:bg-white/10 transition-colors"
