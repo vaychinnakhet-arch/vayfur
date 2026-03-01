@@ -88,8 +88,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       const result = await response.json();
       if (result.success && result.rooms && result.rooms.length > 0) {
-        setRooms(result.rooms);
-        localStorage.setItem('vay-chinnakhet-data', JSON.stringify(result.rooms));
+        // Sanitize data from GAS
+        const sanitizedRooms = result.rooms.map((room: any) => {
+          let unitNo = String(room.unitNo);
+          // Check for Google Sheets time/date format issues (e.g. 1899-12-29...)
+          if (unitNo.includes('1899-12-29') || unitNo.includes('1899-12-30')) {
+             try {
+               const date = new Date(unitNo);
+               if (!isNaN(date.getTime())) {
+                 // If it's a time value, it might be a room number like "10:12" interpreted as time
+                 // Try to format it back to something readable or keep original if unsure
+                 // For now, let's extract time if it looks like a time-only value
+                 const hours = date.getHours().toString().padStart(2, '0');
+                 const minutes = date.getMinutes().toString().padStart(2, '0');
+                 unitNo = `${hours}:${minutes}`;
+               }
+             } catch (e) {
+               // keep original
+             }
+          }
+          
+          return {
+            ...room,
+            unitNo: unitNo,
+            floor: Number(room.floor) || 0, // Ensure floor is a number
+            furniture: room.furniture || []
+          };
+        });
+
+        setRooms(sanitizedRooms);
+        localStorage.setItem('vay-chinnakhet-data', JSON.stringify(sanitizedRooms));
       } else if (result.success && (!result.rooms || result.rooms.length === 0)) {
         // If sheet is empty, save current local data to sheet
         await fetch(gasUrl, {
