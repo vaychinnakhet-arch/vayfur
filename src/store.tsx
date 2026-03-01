@@ -88,36 +88,112 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       const result = await response.json();
       if (result.success && result.rooms && result.rooms.length > 0) {
-        // Sanitize data from GAS
+        let needsHealing = false;
+
+        // Sanitize data from GAS and merge with local definitions to get images
         const sanitizedRooms = result.rooms.map((room: any) => {
           let unitNo = String(room.unitNo);
-          // Check for Google Sheets time/date format issues (e.g. 1899-12-29...)
-          if (unitNo.includes('1899-12-29') || unitNo.includes('1899-12-30')) {
+          if (unitNo === 'undefined' || !unitNo) {
+            unitNo = String(room.id);
+            needsHealing = true;
+          }
+
+          // Check for Google Sheets time/date format issues in unitNo
+          if (unitNo.includes('1899-12-')) {
              try {
                const date = new Date(unitNo);
                if (!isNaN(date.getTime())) {
-                 // If it's a time value, it might be a room number like "10:12" interpreted as time
-                 // Try to format it back to something readable or keep original if unsure
-                 // For now, let's extract time if it looks like a time-only value
                  const hours = date.getHours().toString().padStart(2, '0');
                  const minutes = date.getMinutes().toString().padStart(2, '0');
                  unitNo = `${hours}:${minutes}`;
+                 needsHealing = true;
                }
              } catch (e) {
                // keep original
              }
           }
+
+          // Check for Google Sheets time/date format issues in type (e.g. "1Am" converted to time)
+          let normalizedType = String(room.type || '1A').trim();
+          if (normalizedType === 'undefined' || !normalizedType || normalizedType.includes('1899-12-') || normalizedType.includes('1970-01-')) {
+            needsHealing = true;
+            // It got corrupted by Google Sheets. Let's try to recover based on room ID (e.g. "202")
+            const roomNum = parseInt(unitNo.slice(-2), 10);
+            const floorNum = parseInt(unitNo.slice(0, -2), 10);
+            
+            if (!isNaN(roomNum) && !isNaN(floorNum)) {
+              if (floorNum === 2) {
+                const floor2Types = ['1A', '1Am', '1A', '1Am', '1A', '1Am', '1B', '1Am', '1A', '1Am', '1A', '1Am', '1A', '1Am', '1A', '1A-1m', '1A', '1Am'];
+                normalizedType = floor2Types[roomNum - 1] || '1A';
+              } else {
+                const floor3to8Types = ['1A', '1Am', '1A', '1Am', '1A', '1Am', '1B', '1Am', '1A', '1Am', '1A', '1Am', '1A', '1Am', '1A', '1A', '1Am', '1A', '1A-1m', '1A', '1Am'];
+                normalizedType = floor3to8Types[roomNum - 1] || '1A';
+              }
+            } else {
+              normalizedType = '1Am'; // Fallback
+            }
+          }
+
+          // Helper to get list with loose matching if exact type not found
+          let currentFurnitureList = getFurnitureListForType(normalizedType);
+          
+          // If the type didn't return a specific list (got default), try to find a better match
+          // e.g. if sheet has "1a" but data has "1A"
+          if (currentFurnitureList.length === 0 || (currentFurnitureList === getFurnitureListForType('unknown') && normalizedType !== 'unknown')) {
+             if (normalizedType.toLowerCase() === '1a') currentFurnitureList = getFurnitureListForType('1A');
+             else if (normalizedType.toLowerCase() === '1am') currentFurnitureList = getFurnitureListForType('1Am');
+             else if (normalizedType.toLowerCase() === '1b') currentFurnitureList = getFurnitureListForType('1B');
+          }
+
+          const mergedFurniture = (room.furniture || []).map((item: any, index: number) => {
+             const itemCode = String(item.code || '').trim();
+             
+             // Find matching definition to get the image
+             // Priority: 
+             // 1. Exact Code Match
+             // 2. Case-insensitive Code Match
+             // 3. Name Match
+             // 4. Index fallback
+             const definition = 
+                currentFurnitureList.find(d => d.code === itemCode) || 
+                currentFurnitureList.find(d => d.code.toLowerCase() === itemCode.toLowerCase()) ||
+                currentFurnitureList.find(d => d.name === item.name) ||
+                currentFurnitureList[index];
+             
+             return {
+               ...item,
+               code: itemCode || (definition ? definition.code : ''),
+               name: item.name || (definition ? definition.name : ''),
+               imageUrl: (definition ? definition.imageUrl : item.imageUrl) || '',
+               status: item.status || 'pending',
+               installProgress: item.installProgress || 0,
+               notes: item.notes || '',
+               images: item.images || []
+             };
+          });
           
           return {
             ...room,
             unitNo: unitNo,
-            floor: Number(room.floor) || 0, // Ensure floor is a number
-            furniture: room.furniture || []
+            floor: Number(room.floor) || 0,
+            type: normalizedType,
+            furniture: mergedFurniture
           };
         });
 
         setRooms(sanitizedRooms);
         localStorage.setItem('vay-chinnakhet-data', JSON.stringify(sanitizedRooms));
+
+        // Auto-heal the database if corruption was detected
+        if (needsHealing) {
+          console.log('Data corruption detected. Auto-healing database...');
+          fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ action: 'saveAll', rooms: sanitizedRooms }),
+            redirect: 'follow'
+          }).catch(err => console.error('Auto-heal failed:', err));
+        }
       } else if (result.success && (!result.rooms || result.rooms.length === 0)) {
         // If sheet is empty, save current local data to sheet
         await fetch(gasUrl, {
