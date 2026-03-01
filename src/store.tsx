@@ -12,19 +12,47 @@ interface AppContextType {
   t: (key: string, params?: Record<string, any>) => string;
   gasUrl: string;
   isSyncing: boolean;
+  error: string | null;
   syncData: () => Promise<void>;
   saveLayout: (roomType: string, layout: any[]) => Promise<void>;
+  forceInitialize: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwhaJ6KA1HGw2Z7Qw5m927uTs_ElwUpfR8253CaNPeQTu90z0WCTDTsmOwS3cJtVKTA/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxX6KGd5rRq03XhyokfF25VDCgrb7J9ZM3-Xl6riNCfvg2UgjYn3qzALDP70cFce0nL/exec';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [language, setLanguageState] = useState<Language>('en');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const gasUrl = GAS_URL;
+
+  const forceInitialize = async () => {
+    if (!gasUrl) return;
+    setIsSyncing(true);
+    setError(null);
+    try {
+      console.log('Forcing database initialization...');
+      const initialData = generateInitialData();
+      setRooms(initialData);
+      localStorage.setItem('vay-chinnakhet-data', JSON.stringify(initialData));
+
+      await fetch(gasUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'saveAll', rooms: initialData }),
+        redirect: 'follow',
+      });
+      console.log('Database initialized successfully');
+    } catch (err: any) {
+      console.error('Failed to initialize:', err);
+      setError('Failed to initialize database: ' + err.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const saveLayout = async (roomType: string, layout: any[]) => {
     // Save locally first
@@ -44,6 +72,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             layout: layout
           }),
           redirect: 'follow',
+          credentials: 'omit',
         });
       } catch (error) {
         console.error('Failed to save layout to GAS:', error);
@@ -102,13 +131,72 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncData = async () => {
     if (!gasUrl) return;
     setIsSyncing(true);
+    setError(null);
+
+    const tryFetch = async (url: string, options: RequestInit) => {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        if (text.trim().startsWith('<!DOCTYPE html>') || text.includes('Google Drive - Access Denied')) {
+           throw new Error('HTML_RESPONSE');
+        }
+        throw new Error('INVALID_JSON: ' + text.substring(0, 50));
+      }
+    };
+
     try {
-      // Use GET for loading data as per the new Apps Script structure
-      const response = await fetch(gasUrl, {
-        method: 'GET',
-        redirect: 'follow',
-      });
-      const result = await response.json();
+      const fetchUrl = `${gasUrl}?action=getRooms&_t=${Date.now()}`;
+      let result;
+
+      // Attempt 1: GET with credentials: 'omit' (Best for CORS with GAS)
+      try {
+        console.log('Sync Attempt 1: GET omit');
+        result = await tryFetch(fetchUrl, {
+          method: 'GET',
+          redirect: 'follow',
+          credentials: 'omit',
+        });
+      } catch (e1: any) {
+        console.warn('Attempt 1 failed:', e1);
+        
+        // Attempt 2: Standard GET
+        try {
+          console.log('Sync Attempt 2: GET standard');
+          result = await tryFetch(fetchUrl, {
+            method: 'GET',
+            redirect: 'follow',
+          });
+        } catch (e2: any) {
+          console.warn('Attempt 2 failed:', e2);
+
+          // Attempt 3: POST (Fallback)
+          try {
+            console.log('Sync Attempt 3: POST');
+            result = await tryFetch(gasUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain' },
+              body: JSON.stringify({ action: 'getRooms' }),
+              redirect: 'follow',
+            });
+          } catch (e3: any) {
+            console.error('All sync attempts failed:', e3);
+            
+            let errorMessage = 'Network error: Unable to connect to server.';
+            if (e1.message === 'HTML_RESPONSE' || e2.message === 'HTML_RESPONSE' || e3.message === 'HTML_RESPONSE') {
+              errorMessage = 'Access Denied. Please check "Who has access" is set to "Anyone" in GAS deployment.';
+            } else if (e3.message.startsWith('INVALID_JSON')) {
+              errorMessage = 'Server returned invalid data. ' + e3.message;
+            }
+            
+            throw new Error(errorMessage);
+          }
+        }
+      }
       
       // Handle layouts if returned from GAS
       if (result.layouts) {
@@ -117,7 +205,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
 
-      if (result.success && result.rooms && result.rooms.length > 0) {
+      if (result.success && result.rooms) {
+        // ... (rest of the logic remains the same)
         let needsHealing = false;
 
         // Sanitize data from GAS and merge with local definitions to get images
@@ -145,11 +234,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           // Check for Google Sheets time/date format issues in type (e.g. "1Am" converted to time)
           let normalizedType = String(room.type || '1A').trim();
-          if (normalizedType === 'undefined' || !normalizedType || normalizedType.includes('1899-12-') || normalizedType.includes('1970-01-')) {
-            needsHealing = true;
+
+          // Fix specific Google Sheets "1Am" -> "1:00" conversion (handle without healing to avoid write-back loop)
+          if (normalizedType === '1:00' || normalizedType === '01:00') {
+            normalizedType = '1Am';
+          }
+
+          // Aggressive check for Date strings or corrupted data
+          const isDateString = normalizedType.length > 10 && (
+            normalizedType.includes('1899') || 
+            normalizedType.includes('1970') || 
+            normalizedType.includes('GMT') ||
+            normalizedType.includes('Sat') ||
+            normalizedType.includes('Sun') ||
+            normalizedType.includes('Mon') ||
+            normalizedType.includes('Tue') ||
+            normalizedType.includes('Wed') ||
+            normalizedType.includes('Thu') ||
+            normalizedType.includes('Fri') ||
+            normalizedType.includes(':00:00')
+          );
+
+          if (normalizedType === 'undefined' || !normalizedType || isDateString) {
+            // needsHealing = true; // DISABLE HEALING: Writing back "1Am" to an unformatted sheet just causes it to revert to "1:00" again.
+            // Just fix it in memory for now.
+            
             // It got corrupted by Google Sheets. Let's try to recover based on room ID (e.g. "202")
-            const roomNum = parseInt(unitNo.slice(-2), 10);
-            const floorNum = parseInt(unitNo.slice(0, -2), 10);
+            // Use room.id instead of unitNo because unitNo might be just "2"
+            const roomIdStr = String(room.id);
+            const roomNum = parseInt(roomIdStr.slice(-2), 10);
+            const floorNum = parseInt(roomIdStr.slice(0, -2), 10);
             
             if (!isNaN(roomNum) && !isNaN(floorNum)) {
               if (floorNum === 2) {
@@ -225,19 +339,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }).catch(err => console.error('Auto-heal failed:', err));
         }
       } else if (result.success && (!result.rooms || result.rooms.length === 0)) {
-        // If sheet is empty, save current local data to sheet
+        // If sheet is empty, generate fresh initial data and save it
+        console.log('Database is empty. Initializing with default data...');
+        const initialData = generateInitialData();
+        
+        // Update local state
+        setRooms(initialData);
+        localStorage.setItem('vay-chinnakhet-data', JSON.stringify(initialData));
+
+        // Save to GAS
         await fetch(gasUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'text/plain',
           },
-          body: JSON.stringify({ action: 'saveAll', rooms }),
+          body: JSON.stringify({ action: 'saveAll', rooms: initialData }),
           redirect: 'follow',
         });
+      } else {
+        console.error('Server returned error:', result.message);
+        setError(result.message || 'Unknown server error');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to sync data:', error);
-      alert('Failed to sync data. Please check your internet connection or Google Apps Script URL.');
+      setError(error.message || 'Failed to sync data');
     } finally {
       setIsSyncing(false);
     }
@@ -372,8 +497,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       t: translate,
       gasUrl,
       isSyncing,
+      error,
       syncData,
-      saveLayout
+      saveLayout,
+      forceInitialize
     }}>
       {children}
     </AppContext.Provider>

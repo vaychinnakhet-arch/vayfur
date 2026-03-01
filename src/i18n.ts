@@ -55,6 +55,8 @@ export const translations = {
     confirm: 'Confirm',
     cancel: 'Cancel',
     applyToAllSimilar: 'Update status for all {code} in this room ({count} items)',
+    error: 'Error',
+    retry: 'Retry',
   },
   th: {
     dashboard: 'หน้าหลัก',
@@ -110,6 +112,8 @@ export const translations = {
     confirm: 'ยืนยัน',
     cancel: 'ยกเลิก',
     applyToAllSimilar: 'อัปเดตสถานะให้กับ {code} ทุกชิ้นในห้องนี้ ({count} ชิ้น)',
+    error: 'ข้อผิดพลาด',
+    retry: 'ลองใหม่',
   }
 };
 

@@ -6,7 +6,7 @@ import { useAppContext } from '../store';
 export const Layout: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const location = useLocation();
-  const { language, setLanguage, t, gasUrl, isSyncing, syncData } = useAppContext();
+  const { language, setLanguage, t, gasUrl, isSyncing, syncData, error } = useAppContext();
 
   const navItems = [
     { name: t('dashboard'), path: '/', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -110,6 +110,32 @@ export const Layout: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-500 text-white px-4 py-3 text-center">
+          <p className="text-sm font-medium">
+            {t('error')}: {error}
+            <button 
+              onClick={syncData} 
+              className="ml-4 underline hover:text-white/80"
+            >
+              {t('retry')}
+            </button>
+            <button 
+              onClick={() => {
+                if (confirm('This will clear local data and reload. Are you sure?')) {
+                  localStorage.removeItem('vay-chinnakhet-data');
+                  window.location.reload();
+                }
+              }}
+              className="ml-4 underline hover:text-white/80"
+            >
+              Force Reload
+            </button>
+          </p>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-12">

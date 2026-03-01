@@ -17,9 +17,10 @@ interface FurnitureSummary {
 }
 
 export const Dashboard: React.FC = () => {
-  const { rooms } = useAppContext();
+  const { rooms, forceInitialize, isSyncing } = useAppContext();
 
   const furnitureStats = useMemo(() => {
+    if (rooms.length === 0) return [];
     const stats: { [code: string]: FurnitureSummary } = {};
 
     rooms.forEach(room => {
@@ -59,6 +60,28 @@ export const Dashboard: React.FC = () => {
   }, [rooms]);
 
   const floors = [2, 3, 4, 5, 6, 7, 8];
+
+  if (rooms.length === 0 && !isSyncing) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center p-8">
+        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          </svg>
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800">No Data Found</h2>
+        <p className="text-slate-500 max-w-md">
+          The database appears to be empty. This might happen if you are using a new Google Sheet.
+        </p>
+        <button
+          onClick={forceInitialize}
+          className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          Initialize Database
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-12">
