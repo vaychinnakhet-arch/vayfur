@@ -13,6 +13,7 @@ interface AppContextType {
   gasUrl: string;
   isSyncing: boolean;
   syncData: () => Promise<void>;
+  saveLayout: (roomType: string, layout: any[]) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -24,6 +25,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [language, setLanguageState] = useState<Language>('en');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const gasUrl = GAS_URL;
+
+  const saveLayout = async (roomType: string, layout: any[]) => {
+    // Save locally first
+    localStorage.setItem(`floorplan_areas_${roomType}`, JSON.stringify(layout));
+    
+    // Then try to save to GAS
+    if (gasUrl) {
+      try {
+        await fetch(gasUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain',
+          },
+          body: JSON.stringify({
+            action: 'saveLayout',
+            roomType: roomType,
+            layout: layout
+          }),
+          redirect: 'follow',
+        });
+      } catch (error) {
+        console.error('Failed to save layout to GAS:', error);
+      }
+    }
+  };
 
   useEffect(() => {
     const storedData = localStorage.getItem('vay-chinnakhet-data');
@@ -87,6 +113,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         redirect: 'follow',
       });
       const result = await response.json();
+      
+      // Handle layouts if returned from GAS
+      if (result.layouts) {
+        Object.keys(result.layouts).forEach(type => {
+          localStorage.setItem(`floorplan_areas_${type}`, JSON.stringify(result.layouts[type]));
+        });
+      }
+
       if (result.success && result.rooms && result.rooms.length > 0) {
         let needsHealing = false;
 
@@ -342,7 +376,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       t: translate,
       gasUrl,
       isSyncing,
-      syncData
+      syncData,
+      saveLayout
     }}>
       {children}
     </AppContext.Provider>

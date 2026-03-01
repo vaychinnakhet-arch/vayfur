@@ -6,7 +6,7 @@ import { ItemStatus, getFloorPlanImage } from '../data';
 
 export const RoomDetail: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
-  const { rooms, updateFurnitureStatus, updateFurnitureProgress, t } = useAppContext();
+  const { rooms, updateFurnitureStatus, updateFurnitureProgress, t, saveLayout } = useAppContext();
   const [selectedFurnitureId, setSelectedFurnitureId] = useState<string | null>(null);
   const [tempStatus, setTempStatus] = useState<ItemStatus | null>(null);
   const [tempProgress, setTempProgress] = useState<number | null>(null);
@@ -184,9 +184,9 @@ export const RoomDetail: React.FC = () => {
     }
   }, [room?.type]);
 
-  const handleSaveAreas = () => {
+  const handleSaveAreas = async () => {
     if (!room) return;
-    localStorage.setItem(`floorplan_areas_${room.type}`, JSON.stringify(clickableAreas));
+    await saveLayout(room.type, clickableAreas);
     setIsEditMode(false);
     setEditingAreaIndex(null);
   };
