@@ -289,30 +289,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
              else if (normalizedType.toLowerCase() === '1b') currentFurnitureList = getFurnitureListForType('1B');
           }
 
-          const mergedFurniture = (room.furniture || []).map((item: any, index: number) => {
-             const itemCode = String(item.code || '').trim();
+          // Map over the DEFINITION list (currentFurnitureList) to ensure we have all items
+          // and fill in status from the saved data (room.furniture)
+          const mergedFurniture = currentFurnitureList.map((definition, index) => {
+             const savedItems = room.furniture || [];
              
-             // Find matching definition to get the image
+             // Find matching item in saved data
              // Priority: 
-             // 1. Exact Code Match
+             // 1. Exact Code Match (Highest Priority)
              // 2. Case-insensitive Code Match
              // 3. Name Match
-             // 4. Index fallback
-             const definition = 
-                currentFurnitureList.find(d => d.code === itemCode) || 
-                currentFurnitureList.find(d => d.code.toLowerCase() === itemCode.toLowerCase()) ||
-                currentFurnitureList.find(d => d.name === item.name) ||
-                currentFurnitureList[index];
+             // 4. Migration Hack (Lowest Priority)
+             
+             let savedItem = savedItems.find((f: any) => f.code === definition.code);
+             
+             if (!savedItem) {
+                savedItem = savedItems.find((f: any) => f.code && f.code.toLowerCase() === definition.code.toLowerCase());
+             }
+             
+             if (!savedItem) {
+                savedItem = savedItems.find((f: any) => f.name === definition.name);
+             }
+             
+             if (!savedItem && definition.code.startsWith('F-06')) {
+                 // Only fall back to F-06 if exact match wasn't found
+                 savedItem = savedItems.find((f: any) => f.code === 'F-06');
+             }
              
              return {
-               ...item,
-               code: itemCode || (definition ? definition.code : ''),
-               name: item.name || (definition ? definition.name : ''),
-               imageUrl: (definition ? definition.imageUrl : item.imageUrl) || '',
-               status: item.status || 'pending',
-               installProgress: item.installProgress || 0,
-               notes: item.notes || '',
-               images: item.images || []
+               id: savedItem ? savedItem.id : `f-${index}`,
+               code: definition.code,
+               name: definition.name,
+               imageUrl: definition.imageUrl,
+               status: savedItem ? (savedItem.status || 'pending') : 'pending',
+               installProgress: savedItem ? (savedItem.installProgress || 0) : 0,
+               notes: savedItem ? (savedItem.notes || '') : '',
+               images: savedItem ? (savedItem.images || []) : []
              };
           });
           
