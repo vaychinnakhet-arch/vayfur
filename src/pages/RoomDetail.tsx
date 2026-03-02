@@ -6,7 +6,7 @@ import { ItemStatus, getFloorPlanImage } from '../data';
 
 export const RoomDetail: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
-  const { rooms, updateFurnitureStatus, updateFurnitureProgress, t, saveLayout, updateRoomFurnitureStatus } = useAppContext();
+  const { rooms, updateFurnitureStatus, updateFurnitureProgress, t, saveLayout, updateRoomFurnitureStatus, layouts } = useAppContext();
   const [selectedFurnitureId, setSelectedFurnitureId] = useState<string | null>(null);
   const [tempStatus, setTempStatus] = useState<ItemStatus | null>(null);
   const [tempProgress, setTempProgress] = useState<number | null>(null);
@@ -185,6 +185,16 @@ export const RoomDetail: React.FC = () => {
 
   useEffect(() => {
     if (!room) return;
+    
+    // If we are editing, don't overwrite with incoming data to avoid jumping
+    if (isEditMode) return;
+
+    // Priority: 1. Layouts from Context (Synced), 2. LocalStorage, 3. Default
+    if (layouts && layouts[room.type]) {
+      setClickableAreas(layouts[room.type]);
+      return;
+    }
+
     const saved = localStorage.getItem(`floorplan_areas_${room.type}`);
     if (saved) {
       try {
@@ -201,7 +211,7 @@ export const RoomDetail: React.FC = () => {
     } else {
       setClickableAreas(getLayoutForType(room.type));
     }
-  }, [room?.type]);
+  }, [room?.type, layouts, isEditMode]);
 
   const handleSaveAreas = async () => {
     if (!room) return;

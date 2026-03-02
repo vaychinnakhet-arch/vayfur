@@ -4,6 +4,7 @@ import { Language, t } from './i18n';
 
 interface AppContextType {
   rooms: Room[];
+  layouts: Record<string, any[]>;
   updateFurnitureStatus: (roomId: string, furnitureId: string, status: ItemStatus, notes?: string, images?: string[]) => void;
   updateFurnitureProgress: (roomId: string, furnitureId: string, progress: number) => void;
   resetData: () => void;
@@ -25,6 +26,7 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbxX6KGd5rRq03XhyokfF25V
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [layouts, setLayouts] = useState<Record<string, any[]>>({});
   const [language, setLanguageState] = useState<Language>('en');
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +58,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const saveLayout = async (roomType: string, layout: any[]) => {
+    // Update state
+    setLayouts(prev => ({ ...prev, [roomType]: layout }));
+    
     // Save locally first
     localStorage.setItem(`floorplan_areas_${roomType}`, JSON.stringify(layout));
     
@@ -201,6 +206,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // Handle layouts if returned from GAS
       if (result.layouts) {
+        setLayouts(result.layouts);
         Object.keys(result.layouts).forEach(type => {
           localStorage.setItem(`floorplan_areas_${type}`, JSON.stringify(result.layouts[type]));
         });
@@ -542,6 +548,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={{ 
       rooms, 
+      layouts,
       updateFurnitureStatus, 
       updateFurnitureProgress,
       resetData,
