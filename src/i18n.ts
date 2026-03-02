@@ -61,6 +61,9 @@ export const translations = {
     deliverAll: 'Deliver All',
     confirmInstallAll: 'Are you sure you want to mark all items in this room as INSTALLED?',
     confirmDeliverAll: 'Are you sure you want to mark all items in this room as DELIVERED?',
+    resetAll: 'Reset All',
+    confirmResetAll: 'Are you sure you want to RESET all items in this room to Pending?',
+    resetStatus: 'Reset Status',
   },
   th: {
     dashboard: 'หน้าหลัก',
@@ -122,6 +125,9 @@ export const translations = {
     deliverAll: 'ส่งของทั้งหมด',
     confirmInstallAll: 'คุณแน่ใจหรือไม่ที่จะเปลี่ยนสถานะเฟอร์นิเจอร์ทั้งหมดในห้องนี้เป็น "ติดตั้งแล้ว"?',
     confirmDeliverAll: 'คุณแน่ใจหรือไม่ที่จะเปลี่ยนสถานะเฟอร์นิเจอร์ทั้งหมดในห้องนี้เป็น "ส่งของแล้ว"?',
+    resetAll: 'ลบสถานะทั้งหมด',
+    confirmResetAll: 'คุณแน่ใจหรือไม่ที่จะลบสถานะเฟอร์นิเจอร์ทั้งหมดในห้องนี้กลับเป็น "รอดำเนินการ"?',
+    resetStatus: 'ลบสถานะ',
   }
 };
 

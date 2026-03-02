@@ -30,7 +30,12 @@ export const RoomDetail: React.FC = () => {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleBatchUpdate = async (status: ItemStatus) => {
-    if (window.confirm(t(status === 'installed' ? 'confirmInstallAll' : 'confirmDeliverAll'))) {
+    let confirmMsg = '';
+    if (status === 'installed') confirmMsg = 'confirmInstallAll';
+    else if (status === 'delivered') confirmMsg = 'confirmDeliverAll';
+    else if (status === 'pending') confirmMsg = 'confirmResetAll';
+
+    if (window.confirm(t(confirmMsg))) {
       setIsUpdating(true);
       try {
         await updateRoomFurnitureStatus(room.id, status);
@@ -44,6 +49,7 @@ export const RoomDetail: React.FC = () => {
     setTempStatus(status);
     if (status === 'installed') setTempProgress(100);
     if (status === 'delivered') setTempProgress(0);
+    if (status === 'pending') setTempProgress(0);
     if (status === 'installing' && tempProgress === 0) setTempProgress(10);
   };
 
@@ -241,7 +247,7 @@ export const RoomDetail: React.FC = () => {
               style={{ width: `${progress}%` }}
             ></div>
           </div>
-          <div className="flex gap-2 mt-2 justify-end">
+          <div className="flex gap-2 mt-2 justify-end flex-wrap">
             <button 
               onClick={() => handleBatchUpdate('installed')}
               disabled={isUpdating}
@@ -257,6 +263,14 @@ export const RoomDetail: React.FC = () => {
             >
               <Package className="w-3 h-3" />
               {isUpdating ? '...' : t('deliverAll')}
+            </button>
+            <button 
+              onClick={() => handleBatchUpdate('pending')}
+              disabled={isUpdating}
+              className={`px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors flex items-center gap-1 ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <XCircle className="w-3 h-3" />
+              {isUpdating ? '...' : t('resetAll')}
             </button>
           </div>
         </div>
@@ -493,7 +507,7 @@ export const RoomDetail: React.FC = () => {
               </button>
             </div>
             
-            <div className="p-6 space-y-8">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 max-h-[70vh]">
               {/* Selected Item Info */}
               <div className="flex items-center space-x-5">
                 <div className="w-24 h-24 bg-slate-50 rounded-2xl border border-slate-100 p-2 flex-shrink-0 flex items-center justify-center">
@@ -548,6 +562,19 @@ export const RoomDetail: React.FC = () => {
                     <span className="text-xs font-medium">{t('installed')}</span>
                   </button>
                 </div>
+                
+                {/* Reset Button */}
+                <button
+                  onClick={() => handleStatusChange('pending')}
+                  className={`w-full flex items-center justify-center gap-2 p-2 rounded-lg border transition-all mt-2 ${
+                    tempStatus === 'pending'
+                      ? 'border-slate-300 bg-slate-100 text-slate-600'
+                      : 'border-slate-100 text-slate-400 hover:bg-slate-50 hover:text-slate-600'
+                  }`}
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span className="text-xs font-medium">{t('resetStatus')}</span>
+                </button>
               </div>
 
               {/* Progress Slider */}
@@ -652,22 +679,22 @@ export const RoomDetail: React.FC = () => {
                   </label>
                 </div>
               )}
-
-              {/* Action Buttons */}
-              <div className="pt-6 border-t border-slate-100 flex gap-3">
-                <button
-                  onClick={handleCancelUpdate}
-                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
-                >
-                  {t('cancel')}
-                </button>
-                <button
-                  onClick={handleConfirmUpdate}
-                  className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
-                >
-                  {t('confirm')}
-                </button>
-              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/80 backdrop-blur-md flex gap-3 sticky bottom-0 z-10">
+              <button
+                onClick={handleCancelUpdate}
+                className="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={handleConfirmUpdate}
+                className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
+              >
+                {t('confirm')}
+              </button>
             </div>
           </div>
         </div>
